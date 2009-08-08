@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import musicsql
-import pdb
 
 class Query(musicsql.Aggregate):
 
