@@ -1,0 +1,7 @@
+[LilyPond]
+# *_path values indicate the location of the LilyPond executable.
+# You may need to configure this to match your setup.
+
+mac_path:   /Applications/LilyPond.app/Contents/Resources/bin
+linux_path: /usr/bin
+win_path:   C:\Program Files\LilyPond\usr\bin

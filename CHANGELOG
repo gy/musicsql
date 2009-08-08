@@ -1,0 +1,29 @@
+MusicSQL changelog
+
+0.1.2: Aug 5, 2009
+- Continued migration toward a pure-SQLAlchemy backend.
+- Removed redundant database connections.
+- Fixed problem where some MySQL tables were not InnoDB.
+- Set MySQL connections to SQL_BIG_SELECTS=1.
+- Hid command-line output from LilyPond.
+- Added basic --verbose option to show raw SQL code.
+- Added beam handling to MusicXML output.
+- Heavily revised the ReadMe file.
+- Updated and simplified the template.
+- Added the Query.print_run() method.
+
+0.1.1: July 15, 2009
+- Reverted to simple Python Distutils installer.
+- Added installation directions for external dependencies.
+- Added musicsql.alchemy.Conditional class to make and/or relationships
+read more like English.
+- Changed names of 'add_column'-like methods to 'select'.
+- Moved LilyPond handling code from the musicsql script to a new
+lilypond.py module, and moved LilyPond path info to a CONFIG file.
+- Changed the script name from musicsql to musicSQL to hopefully avoid
+namespace problems.
+- Updated to work with SQLAlchemy 0.5.
+- Fixed problems with table creation code.
+
+0.1: April 22, 2007
+Initial release.
