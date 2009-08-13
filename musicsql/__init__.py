@@ -35,17 +35,21 @@ class Query:
 			options = musicsql.options.default_options()
 		self.options = options.copy()
 		self.errors = musicsql.backend.get_errors(self.options['backend'])
-		self.alchemy = musicsql.alchemy.SQL(**options)
 		self.types = {'integer': sqlalchemy.Integer,
 					'string': sqlalchemy.String(32), # just a useful default
 					'float': sqlalchemy.Float,
 					'text': sqlalchemy.Text}
+		self.alchemy = None
 		self.outputFields = []
 		self.field_types = {}
 		self.notehead_command = None
 		self.requires = []
 		self.distinct = False
 		self.cursors = {}
+		self.foreignkey = {}
+
+	def _init_alchemy(self):
+		self.alchemy = musicsql.alchemy.SQL(**self.options)
 		self.check_requirements()
 
 	def sql(self):
@@ -66,6 +70,8 @@ class Query:
 		return getattr(sqlalchemy.func, name)
 
 	def part(self):
+		if not self.alchemy:
+			self._init_alchemy()
 		return self.alchemy.part()
 
 	def select_expression(self, expression, label):
@@ -81,6 +87,8 @@ class Query:
 		self.run(printing=True)
 
 	def run(self, unique=False, message=None, printing=False):
+		if not self.alchemy:
+			self._init_alchemy()
 		if not self.alchemy.structures:
 			self.sql()
 		sql = self.alchemy.assemble_query()
@@ -100,9 +108,12 @@ class Query:
 			self.write_to_table(results_file, headers, table)
 		if printing or 'printing' in self.options:
 			print '\t'.join(headers)
-			results_file.seek(0)
 			for row in results_file:
 				print row.rstrip()
+			results_file.seek(0)
+		if 'preview' in self.options:
+			import musicsql.lilypond
+			musicsql.lilypond.make_previews(results_file, headers, **self.options)
 			results_file.seek(0)
 		return results_file, headers
 
@@ -152,9 +163,9 @@ class Query:
 				sys.exit("Type error: no type set for '%s'." % field)
 			col = sqlalchemy.Column(field, type)
 			columns.append(col)
-		if self.foreignkey:
-			col = sqlalchemy.Column(self.foreignkey[0], self.types['integer'], 
-								sqlalchemy.ForeignKey("%s.row_id" % self.foreignkey[1]))
+		for key, val in self.foreignkey.items():
+			col = sqlalchemy.Column(key, self.types['integer'], 
+								sqlalchemy.ForeignKey("%s.row_id" % val))
 			columns.append(col)
 		if unique:
 			columns.append(sqlalchemy.UniqueConstraint(*columns))
@@ -191,7 +202,7 @@ class Query:
 			sys.exit('SQL error %s\n' % err.orig)
 		return results
 
-	def summarize_exportables(self, row, headers, connection):
+	def summarize_previewdata(self, row, headers, connection):
 		if '_path' in headers:
 			headers.remove('_path')
 			for key in headers[:]:
@@ -271,6 +282,7 @@ class Query:
 		input_headers = []
 		final_output_headers = []
 		distinct = {}
+		output_count = 0
 		while True:
 			rows = results.fetchmany(size=100)
 			if not rows:
@@ -283,9 +295,9 @@ class Query:
 			if 'tablename' in self.options:
 				span = (0, 50)
 			self.show_progress(rows, output_headers, span)
-			if 'exportable' in self.options:
+			if 'previewdata' in self.options:
 				for row in rows:
-					self.summarize_exportables(row, output_headers, connection)
+					self.summarize_previewdata(row, output_headers, connection)
 			if isinstance(self, musicsql.Aggregate):
 				rows = self.applyAggregate(rows, output_headers)
 			elif isinstance(self, musicsql.Function):
@@ -309,13 +321,13 @@ class Query:
 		if progress['result_rows'] == 0:
 			warn('No data returned!\n')
 			sys.exit(1)
+		sys.stderr.write('%d results.\n' % progress['result_rows'])
 		resultFile.flush()
 		resultFile.close()
 		return tmpfilename, output_headers
 
 	def write_to_table(self, file_handle, headers, table):
 		warn('Inserting data into database...\n')
-		file_handle.seek(0)
 		self.progress['percent'] = 0
 		self.progress['limit'] = self.progress['result_rows']
 		row_count = 0
@@ -327,6 +339,7 @@ class Query:
 			data.append(dict(zip(headers, fields)))
 		self.alchemy.bind.dialect.paramstyle = 'format'
 		table.insert().execute(data)
+		file_handle.seek(0)
 		return
 
 class Function(Query):

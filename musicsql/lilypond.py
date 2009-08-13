@@ -38,6 +38,35 @@ def check_lilypond():
 		sys.exit('MusicSQL: LilyPond version 2.12 or greater is required.')
 	return lilypond
 
+def make_previews(result_handle, headers, **options):
+	import os.path
+	import tempfile
+	import shutil
+	import musicsql.lilypond
+	import musicsql.database.exportxml
+	
+	warn('Making previews...\n')
+	tmp_dir = tempfile.mkdtemp()
+	rows = []
+	for row in result_handle:
+		columns = row.rstrip().split('\t')
+		hash = dict(zip(headers, columns))
+		rows.append(hash)
+	lyfile_list = []
+	out_files = []
+	format = options.get('format', 'png')
+	for row in rows:
+		xmlfile = musicsql.database.exportxml.previewdataToXml(row, tmp_dir, **options)
+		lyfile = musicsql.lilypond.xml_to_ly(xmlfile, tmp_dir)
+		lyfile_list.append(lyfile)
+		file = os.path.splitext(os.path.basename(row['_file']))[0]
+		out_files.append("%s_m%s_%s.%s" % (file, row['_measures'], row['_parts'], format))
+	prev_files = musicsql.lilypond.ly_to_preview(lyfile_list, tmp_dir, format)
+	for i in range(len(prev_files)):
+		shutil.copy(prev_files[i], out_files[i])
+	shutil.rmtree(tmp_dir)
+	return prev_files
+
 def xml_to_ly(filename, tmp_dir):
 	import subprocess
 	import tempfile

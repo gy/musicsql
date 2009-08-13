@@ -7,7 +7,7 @@ class Query(musicsql.Aggregate):
 
 	def table_data(self):
 		self.requires = ()
-		self.foreignkey = ('moment_id', 'moments')
+		self.foreignkey['moment_id'] = 'moments'
 		self.groupFields = ['moment_id']
 		self.field_types['quality'] = self.types['string']
 		self.field_types['root'] = self.types['integer']
@@ -17,7 +17,7 @@ class Query(musicsql.Aggregate):
 			 '0 2': ['major second', 0],
 			 '0 3': ['minor third', 0],
 			 '0 4': ['major third', 0],
-			 '0 5': ['fifth', 0],
+			 '0 5': ['fifth', 1],
 			 '0 6': ['tritone', 0], # not necessarily true
 			 '0 3 6': ['diminished', 0],
 			 '0 3 7': ['minor', 0],
@@ -54,35 +54,34 @@ class Query(musicsql.Aggregate):
 		s = self.state['list'].keys()
 		if not s:
 			return
-		s.sort()
-
-		# Find the normal form
-		s.append(s[0]+12)
-		i = [(s[x+1] - s[x], x) for x in range(len(s)-1)]
-		i2 = [ [(i+i)[x+y] for y in range(len(i))]
-			   for x in range(0, len(i)) ]
-		i.sort()
-		i3 = [x for x in i2 if x[-1][0] == i[-1][0]]
-		i3.sort()
-		zero_transpose = s[i3[0][0][1]]
-		pcs = [0]
-		p = 0
-		for n in range(len(i) - 1):
-			p += i3[0][n][0]
-			pcs.append(p)
-		nf = ' '.join([str(x) for x in pcs])
+		# find the normal form
+		pcs = [x % 12 for x in s]
+		workset = list(set(pcs))
+		workset.sort()
+		dblworkset = workset + workset
+		idxs = range(len(workset))
+		for i in idxs:
+			test = []
+			for j in range(i+len(workset)-1, i, -1):
+				test.append((dblworkset[j] - dblworkset[i]) % 12)
+			if (i == 0 or test < min):
+				min = test
+				best = dblworkset[i:i+len(workset)];
+		zero_transpose = best[0]
+		bestset = [(x - zero_transpose) % 12 for x in best]
+		nf = ' '.join([str(x) for x in bestset])
 
 		# Find qualities
 		result = self.qualities.get(nf, None)
 		if result is None:
 			return
 		type, root_idx = result
-		root = (pcs[root_idx] + zero_transpose) % 12
-		bass_idx = 0
-		for idx in range(len(pcs)):
-			if pcs[idx] == s[0]:
-				bass_idx = idx
-		inv_idx = (bass_idx - root_idx) % len(pcs)
+		root = best[root_idx]
+		
+		s.sort()
+		bass_pc = s[0] % 12;
+		bass_idx = best.index(bass_pc)
+		inv_idx = (bass_idx - root_idx) % len(best)
 		inversions = ['root', 'first', 'second', 'third', 'na']
 		self.output.append([('moment_id', self.state['moment_id']),
 							('quality', result[0]),
@@ -91,7 +90,7 @@ class Query(musicsql.Aggregate):
 
 	def sql(self):
 		part = self.part()
-		note = part.add_note()
+		note = part.add_first_note()
 		note.select('semit')
 
 		simul = note.add_simultaneity()

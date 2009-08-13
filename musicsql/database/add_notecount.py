@@ -10,7 +10,7 @@ class Query(musicsql.Aggregate):
 			# list of field names used to group aggregates 
 		
 		self.field_types['notecount'] = self.types['integer']
-		self.foreignkey = ('moment_id', 'moments')
+		self.foreignkey['moment_id'] = 'moments'
 			# add a foreign key to connect the new table to one of the
 			# main hub tables (moments, notes, parts, noteheads)
 
@@ -41,7 +41,7 @@ class Query(musicsql.Aggregate):
 
 	def sql(self):
 		part = self.part()
-		note = part.add_note()
+		note = part.add_first_note()
 		simul = note.add_simultaneity()
 		inter = simul.intersects[0]
 		inter.select('moment_id', 'note_id')

@@ -6,7 +6,7 @@ class Query(musicsql.Function):
 
 	def table_data(self):
 		self.requires = ()
-		self.foreignkey = ('moment_id', 'moments')
+		self.foreignkey['moment_id'] = 'moments'
 		self.field_types['moment_id'] = self.types['integer']
 		self.distinct = True
 

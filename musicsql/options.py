@@ -5,7 +5,7 @@ A module for processing command-line and configuration file options.
 '''
 
 __all__ = ['getOptions', 'get_config_parser', 'defaults']
-defaults = ['exportable?', 'password?', 'printing?', 'preview?', 'database=', 
+defaults = ['previewdata?', 'password?', 'printing?', 'preview?', 'format=?', 'database=', 
 				'host=?', 'user=?', 'backend=?', 'verbose?']
 
 import sys
@@ -79,6 +79,8 @@ def getOptions(longOpts=[], usageError=''):
 	if 'password' in options:
 		import getpass
 		options['password'] = getpass.getpass(stream=sys.stderr)
+	if 'preview' in options:
+		options['previewdata'] = True
 	return options, args
 
 def default_options(**presets):

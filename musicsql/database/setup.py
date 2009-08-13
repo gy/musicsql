@@ -87,6 +87,7 @@ def setup(**options):
 		Column('concert_alter', Integer),
 		Column('concert_octave', Integer),
 		Column('semit', Integer),
+		Column('pc', Integer),
 		Column('duration', Integer)
 		)
 	Table('intersects', metadata,

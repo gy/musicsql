@@ -6,7 +6,7 @@ class Query(musicsql.Query):
 
     def table_data(self):
         self.requires = ['upbeat', 'quality']
-        self.foreignkey = ['moment_id', 'moments']
+        self.foreignkey['moment_id'] = 'moments'
 
     def sql(self):
 		part = self.part()

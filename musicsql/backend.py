@@ -80,7 +80,7 @@ def alcconnect(**options):
 	db = sqlalchemy.create_engine(url)
 	if backend == 'mysql':
 		try:
-			db.execute('SET storage_engine=InnoDB;')
+			db.execute('SET GLOBAL storage_engine=InnoDB;')
 		except sqlalchemy.exc.OperationalError, err:
 			sys.exit("SQL error %s" % err.orig)
 		db.execute('SET SQL_BIG_SELECTS=1;')
@@ -149,7 +149,10 @@ def list_columns(table, **options):
 	db = alcconnect(**options)
 	meta = sqlalchemy.MetaData()
 	meta.bind = db
-	table = sqlalchemy.Table(table, meta, autoload=True)
+	try:
+		table = sqlalchemy.Table(table, meta, autoload=True)
+	except sqlalchemy.exc.NoSuchTableError, err:
+		sys.exit("Error: This database does not have a '%s' node." % err)
 	cols = [x.name for x in table.c if not x.name.endswith('_id')]
 	return cols
 

@@ -6,12 +6,12 @@ class Query(musicsql.Query):
 
 	def table_data(self):
 		self.requires = ()
-		self.foreignkey = ('note_id', 'notes')
-		self.field_types['contrarymotion'] = self.types['integer']
+		self.foreignkey['note_id'] = 'notes'
+#		self.field_types['contrarymotion'] = self.types['integer']
 
 	def sql(self):
 		part1 = self.part()
-		note1 = part1.add_note()
+		note1 = part1.add_first_note()
 		moment = note1.start_moment()
 		note1.select_alias('row_id', 'note_id')
 
@@ -28,9 +28,9 @@ class Query(musicsql.Query):
 		bothup = self.conditional().IF(n1s > p1s).AND(n2s > p2s)
 		bothdown = self.conditional().IF(n1s < p1s).AND(n2s < p2s)
 		contrary = self.conditional()
-		contrary.IF(n1s == p1s).OR(n2s == p2s).OR(bothup).OR(bothdown).THEN(0).ELSE(1)
-#		note1.add_constraint(contrary)
-		self.select_expression(contrary, 'contrarymotion')
+		contrary.IF(n1s == p1s).OR(n2s == p2s).OR(bothup).OR(bothdown)
+		note1.add_constraint(contrary)
+#		self.select_expression(contrary, 'contrarymotion')
 
 if __name__ == '__main__':
 	query = Query()

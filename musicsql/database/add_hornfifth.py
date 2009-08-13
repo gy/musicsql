@@ -6,12 +6,12 @@ class Query(musicsql.Query):
 
 	def table_data(self):
 		self.requires = []
-		self.foreignkey = ('note_id', 'notes')
+		self.foreignkey['note_id'] = 'notes'
 		self.field_types['ideal_vl'] = self.types['integer']
 
 	def sql(self):
 		part1 = self.part()
-		note1 = part1.add_note()
+		note1 = part1.add_first_note()
 		note1.select_alias('row_id', 'note_id')
 
 		part2 = self.part()

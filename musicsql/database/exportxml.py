@@ -486,6 +486,8 @@ def export(printer=sys.stdout, **options):
 		command = 'SELECT * FROM parts WHERE file_id = %s'
 	cursor.execute(command % fileInfo['row_id'])
 	parts = fetchrows(cursor)
+	if not parts:
+		sys.exit('Error: no valid parts were found.')
 	if 'ticks' in options:
 		bounds = [int(x) for x in options['ticks'].split('-')]
 		command = '''
@@ -517,7 +519,7 @@ def export(printer=sys.stdout, **options):
 	warn('Completed in %d seconds.\n' % (time.time() - StartTime))
 
 
-def exportableToXml(row, tmp_dir, **options):
+def previewdataToXml(row, tmp_dir, **options):
 	from os import fdopen
 	import tempfile
 
@@ -529,7 +531,7 @@ def exportableToXml(row, tmp_dir, **options):
 	except KeyError:
 		sys.exit("Error: Unable to locate the extra MusicSQL output " +
 			 "headers.\nAre you sure you exported this from " +
-			 "MusicSQL using the 'exportable' option?\n")
+			 "MusicSQL using the 'previewdata' option?\n")
 	fileinfo = tempfile.mkstemp(dir=tmp_dir)
 	tmp_handle = fdopen(fileinfo[0], 'w')
 	tmp_file = fileinfo[1]

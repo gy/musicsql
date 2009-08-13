@@ -421,6 +421,7 @@ def processNote(node, attributes, globals, context, rest=False):
 		except ValueError, str:
 			warn('Error: %s: %s.\n' % (str, globals['context']))
 			sys.exit(2)
+		noteProperties['pc'] = noteProperties['semit'] % 12
 	if chord:
 		globals['ticks'] -= noteheadProperties['notehead_duration']
 		noteheadProperties['start_tick'] = globals['ticks']
@@ -478,7 +479,6 @@ def transpose(note, notehead, attributes):
 		note['concert_octave'] -= 1
 	if attributes.has_key('octave-change'):
 		note['concert_octave'] += attributes['octave-change']
-
 		
 def addNotehead(noteProperties, noteheadProperties, globals):
 	grace = False

@@ -8,15 +8,15 @@ class Query(musicsql.Aggregate):
 	def table_data(self):
 		self.requires = ['quality']
 		self.groupFields = ['moment_id']
-		self.field_types['note_id'] = self.types['integer']
 		self.field_types['quality_wo_nht'] = self.types['text']
-		self.foreignkey = ('moment_id', 'moments')
+		self.foreignkey['moment_id'] = 'moments'
+		self.foreignkey['note_id'] = 'notes'
 		q = {'0': ['unison', 0],
 			 '0 1': ['minor second', 0],
 			 '0 2': ['major second', 0],
 			 '0 3': ['minor third', 0],
 			 '0 4': ['major third', 0],
-			 '0 5': ['fifth', 0],
+			 '0 5': ['fifth', 1],
 			 '0 6': ['tritone', None],
 			 '0 3 6': ['diminished', 0],
 			 '0 3 7': ['minor', 0],
@@ -45,24 +45,27 @@ class Query(musicsql.Aggregate):
 		if not s:
 			return None
 		s.sort()
-		# Find the normal form
-		s.append(s[0]+12)
-		i = [(s[x+1] - s[x], x) for x in range(len(s)-1)]
-		i2 = [ [(i+i)[x+y] for y in range(len(i))]
-			   for x in range(0, len(i)) ]
-		i.sort()
-		i3 = [x for x in i2 if x[-1][0] == i[-1][0]]
-		i3.sort()
-		zero_transpose = s[i3[0][0][1]]
-		pcs = [0]
-		p = 0
-		for n in range(len(i) - 1):
-			p += i3[0][n][0]
-			pcs.append(p)
-		nf = ' '.join([str(x) for x in pcs])
+		# find the normal form
+		pcs = [x % 12 for x in s]
+		workset = list(set(pcs))
+		workset.sort()
+		dblworkset = workset + workset
+		idxs = range(len(workset))
+		for i in idxs:
+			test = []
+			for j in range(i+len(workset)-1, i, -1):
+				test.append((dblworkset[j] - dblworkset[i]) % 12)
+			if (i == 0 or test < min):
+				min = test
+				best = dblworkset[i:i+len(workset)];
+		zero_transpose = best[0]
+		bestset = [(x - zero_transpose) % 12 for x in best]
+		nf = ' '.join([str(x) for x in bestset])
+
+		# Find qualities
 		result = self.qualities.get(nf, None)
 		if result is None:
-			return None
+			return
 		return result[0]
 
 	def init(self):
@@ -105,7 +108,7 @@ class Query(musicsql.Aggregate):
 
 	def sql(self):
 		part = self.part()
-		note = part.add_note()
+		note = part.add_first_note()
 		note.select('semit', 'duration')
 		note.select_alias('row_id', 'note_id')
 

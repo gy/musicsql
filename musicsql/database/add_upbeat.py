@@ -13,7 +13,7 @@ class Query(musicsql.Aggregate):
 
 		# add a foreign key to connect the new table to one of the
 		# main hub tables (moments, notes, parts, noteheads)
-		self.foreignkey = ('downbeatmoment_id', 'moments')
+		self.foreignkey['downbeatmoment_id'] = 'moments'
 
 	# init is run at the start of each new aggregate
 	# - set up the state variable

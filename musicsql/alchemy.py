@@ -63,11 +63,9 @@ class SQL(sqlalchemy.sql.expression.Select):
 	
 		table_list = self.metadata.tables.keys()
 		for idx in table_list:
-			tbl = sqlalchemy.Table(idx, self.metadata, autoload=True)
+			tbl = self.metadata.tables[idx]
 			self.tables[idx] = tbl
-			sql_count = sqlalchemy.func.count
-			result = sqlalchemy.select([sql_count(tbl.c['row_id'])]).execute()
-			tbl.count = int(result.fetchone()[0])
+			tbl.count = tbl.count().execute().scalar()
 			tbl.foreigncount = {}
 		hub_list = ('notes', 'noteheads', 'parts', 'moments', 'events')
 		for idx in hub_list:
@@ -116,8 +114,7 @@ class SQL(sqlalchemy.sql.expression.Select):
 	
 	def part(self):
 		part = Part()
-		exportable = self.options.get('exportable', False)
-		if exportable and not self.column_list:
+		if 'previewdata' in self.options and not self.column_list:
 			file = part.node('files')
 			file.select_alias('path', '_path')
 		return part
@@ -219,7 +216,7 @@ class Conditional():
 		
 	def IF(self, predicate, THEN=None):
 		if (isinstance(predicate, Conditional)):
-			predicate = predicate.expression()
+			predicate = predicate.nested_expression()
 		idx = len(self.cases)
 		clause = [predicate, THEN]
 		self.cases.insert(idx, clause)
@@ -236,13 +233,13 @@ class Conditional():
 		
 	def AND(self, predicate):
 		if (isinstance(predicate, Conditional)):
-			predicate = predicate.expression()
+			predicate = predicate.nested_expression()
 		self.cases[self.ifstate][0] = sqlalchemy.and_(self.cases[self.ifstate][0], predicate)
 		return self
 				
 	def OR(self, predicate):
 		if (isinstance(predicate, Conditional)):
-			predicate = predicate.expression()
+			predicate = predicate.nested_expression()
 		self.cases[self.ifstate][0] = sqlalchemy.or_(self.cases[self.ifstate][0], predicate)
 		return self
 				
@@ -250,13 +247,16 @@ class Conditional():
 		self.elseval = str(val)
 		return self
 	
-	def expression(self):
+	def nested_expression(self):	
 		if (len(self.cases) > 1):
 			warn("Warning: You are combining Conditional objects with more than one IF case; " +
 				"only the first case is kept.")
 		if (self.cases[0][1]):
 			warn("Warning: You are combining Conditional objects which have THEN clauses; " +
 				"those clauses will be discarded.")
+		return self.expression()
+
+	def expression(self):
 		return self.cases[0][0]
 	
 	def case(self):
@@ -273,6 +273,7 @@ class Node(sqlalchemy.sql.expression.Alias):
 		self.constraints = {}
 		self.select_columns = []
 		self.joins = []
+		self.hub_type = None
 
 	def alias_name(self):
 		import random
@@ -294,6 +295,9 @@ class Node(sqlalchemy.sql.expression.Alias):
 				warn("Error: the '%s' join type is not supported.\n" % join[2])
 				sys.exit(1)
 		return base
+	
+	def property(self, prop_name):
+		return self.c[prop_name]
 
 	def add_select_to_query(self, where_list, column_list):
 		for object, conditions in self.constraints.iteritems():
@@ -318,7 +322,8 @@ class Node(sqlalchemy.sql.expression.Alias):
 		self.SQL.field_types[alias] = column.type
 		
 	def select_all(self):
-		self.select(self.c)
+		columns = [x for x in self.c.keys() if not x.endswith('_id')]
+		self.select(*columns)
 
 	def list_columns(self):
 		columns = []
@@ -335,12 +340,10 @@ class Node(sqlalchemy.sql.expression.Alias):
 			warn("Error: 'isNull' can not be called on Node %s " % self.original.name +
 				"because it is not dependent on another table (it has no foreign keys).")
 			sys.exit(1)
-		if len(self.foreign_keys) > 1:
-			warn("Error: 'isNull' can not be called on Node %s " % self.original.name +
-				"because it is connected to multiple Nodes (is has multiple foreign keys).")
-			sys.exit(1)
-		foreignkey = tuple(self.foreign_keys)[0]
-		return foreignkey.parent != None
+		for key in self.foreign_keys:
+			if key.column.table.name == self.hub_type:
+				return key.parent != None
+	
 		
 class Hub(Node):
 
@@ -378,6 +381,11 @@ class Hub(Node):
 			self.constraints[relative] = []
 		self.constraints[relative].append(constraint)
 
+	def same_as(self, object):
+		if type(self) != type(object):
+			sys.exit('Node.same_as(): can only compare objects of the same type.\n')
+		self.add_constraint(self.c['row_id'] == object.c['row_id'])
+			
 	def node(self, table_name, join=None):
 		type = self.original.name
 		if table_name in self.relatives:
@@ -400,6 +408,7 @@ class Hub(Node):
 			self.joins.append([table, col1 == col2, join])
 			self.relatives[table_name] = table
 			self.SQL.data.append(table)
+			table.hub_type = type
 		else:
 			warn(("The property node '%s' is not attached to the " + 
 				  "'%s' hub in the current database.\n")
@@ -417,16 +426,16 @@ class Notehead(Hub):
 		self.add_constraint(self.c['note_id'] == note.c['row_id'])
 		self.tied_previous = None
 		if not event:
-			part = note.start_event.part
+			part = note._start_event.part
 			moment = Moment(part)
 			event = Event(part, moment)
 		self.add_constraint(self.c['startevent_id'] == event.c['row_id'])
-		self.start_event = event
+		self._start_event = event
 		if tied_previous:
 			self.tied_previous = tied_previous
 			c = self.c['tiedto_id'] == tied_previous.c['row_id']
 			self.add_constraint(c)
-		if self.SQL.options.get('exportable', False):
+		if 'previewdata' in self.SQL.options:
 			self.select_alias('row_id', '_nidx_' + self.name)
 
 	def add_next_tied_notehead(self):
@@ -437,14 +446,14 @@ class Notehead(Hub):
 		last_tied_note.tied_next = notehead
 		return notehead
 
-	def start_slur(self, notehead):
+	def set_slur(self, notehead):
 		slur = Node('slurs')
 		c = slur.c['startnotehead_id'] == self.c['row_id']
 		self.add_constraint(c)
 		c = slute.c['stopnotehead_id'] == notehead.c['row_id']
 		notehead.add_constraint(c)
-		self.add_constraint(self.start_event.c['ticks'] < 
-							notehead.start_event.c['ticks'])
+		self.add_constraint(self._start_event.c['ticks'] < 
+							notehead._start_event.c['ticks'])
 
 
 class Note(Hub):
@@ -452,26 +461,29 @@ class Note(Hub):
 	def __init__(self, event, specifier=None):
 		Hub.__init__(self, 'notes')
 		self.SQL.data.append(self)
-		self.start_event = event
+		self._start_event = event
 #		self.simul_events = []
 		self.add_constraint(self.c['startevent_id'] == event.c['row_id'],
 							event)
 		self.onset_notehead = None
-		if self.SQL.options.get('exportable', False):
+		if 'previewdata' in self.SQL.options:
 			self.notehead()
 		if specifier:
 			self.set_note_details(specifier)
 
 	def notehead(self):
 		if not self.onset_notehead:
-			self.onset_notehead = Notehead(self, self.start_event)
+			self.onset_notehead = Notehead(self, self._start_event)
 		return self.onset_notehead
 
 	def part(self):
-		return self.start_event.part
+		return self._start_event.part
 
 	def start_moment(self):
-		return self.start_event.moment
+		return self._start_event.moment
+	
+	def start_event(self):
+		return self._start_event
 
 	def set_note_details(self, details):
 		patt = '(\d+\.*)?([a-gA-G][-#]*\d*)?'
@@ -499,7 +511,7 @@ class Note(Hub):
 
 	def set_recip(self, recip):
 		(recip, dots) = re.findall('(\d+)(\.*)', recip)[0]
-		divisions = self.start_event.get_divisions()
+		divisions = self._start_event._get_divisions()
 		if dots:
 			denom = 2 ** len(dots)
 			num = 0
@@ -510,29 +522,31 @@ class Note(Hub):
 			c = self.c['duration'] == divisions * 4 / recip
 		self.add_constraint(c)
 
-	def set_diatonic_interval(self, note2, interval, dir):
+	def set_diatonic_interval(self, note2, interval, dir='next'):
 		if dir == 'next':
 			step = note2.c['concert_step'] - self.c['concert_step']
 			oct = note2.c['concert_octave'] - self.c['concert_octave']
-		if dir == 'prev':
+		if dir == 'previous':
 			step = self.c['concert_step'] - note2.c['concert_step']
 			oct = self.c['concert_octave'] - note2.c['concert_octave']
 		self.add_constraint(step + oct * 7 == interval)
 
-	def set_chromatic_interval(self, note2, interval, dir):
+	def set_chromatic_interval(self, note2, interval, dir='next'):
 		if dir == 'next':
 			int = note2.c['semit'] - self.c['semit']
-		if dir == 'prev':
+		if dir == 'previous':
 			int = self.c['semit'] - note2.c['semit']
 		self.add_constraint(int == interval)
 
-	def set_contour(self, note2, contour, dir):
+	def set_contour(self, note2, contour, dir='next'):
 		if contour not in ('^', 'v'):
-			warn("Contour must be specified as '/' or '\'.\n")
+			warn("Contour must be specified as '^' or 'v'.\n")
 			sys.exit(1)
 		if ((dir == 'next' and contour == '^') or
-			(dir == 'prev' and contour == 'v')):
+			(dir == 'previous' and contour == 'v')):
 			c = note2.c['semit'] > self.c['semit']
+		elif contour == '-':
+			c = note2.c['semit'] == self.c['semit']
 		else:
 			c = note2.c['semit'] < self.c['semit']
 		self.set_constraint(c)
@@ -543,9 +557,9 @@ class Note(Hub):
 		return s
 
 	def detach_startevent(self):
-		del self.constraints[self.start_event]
+		del self.constraints[self._start_event]
 
-	def process_intervals(self, note, **kargs):
+	def _process_intervals(self, note, **kargs):
 		diatonic = kargs.get('diatonic_interval')
 		dir = kargs.get('dir')
 		if diatonic:
@@ -557,13 +571,13 @@ class Note(Hub):
 	def add_chordnote(self, details=None, **kargs):
 		note = Note(self.event, details)
 		self.constraints[note] = [self.c['row_id'] != note.c['row_id']]
-		self.process_intervals(note, **kargs)
+		self._process_intervals(note, **kargs)
 		return note
 
 	def newevent_note(self, details, **kargs):
-		event = self.start_event.part.event(Moment())
+		event = self._start_event.part.event(Moment())
 		note = Note(event, details)
-		self.process_intervals(note, **kargs)
+		self._process_intervals(note, **kargs)
 		return note
 
 	def add_previous_note(self, details=None, **kargs):
@@ -652,11 +666,11 @@ class Event(Hub):
 		part.events[moment] = self
 		moment.events[part] = self
 
-	def get_divisions(self):
+	def _get_divisions(self):
 		files = self.node('files')
 		return files.c['divisions']
 							 
-	def start_wedge(self, event):
+	def set_wedge(self, event):
 		wedge = Node('wedges')
 		c = slur.c['startevent_id'] == self.c['row_id']
 		self.add_constraint(c)
@@ -687,11 +701,13 @@ class Moment(Hub):
 	def add_later_moment(self):
 		moment = Moment()
 		self.add_constraint(moment.c.ticks > self.c.ticks)
+		self.add_constraint(moment.c.file_id == self.c.file_id)
 		return moment
 
 	def add_earlier_moment(self):
 		moment = Moment()
 		self.add_constraint(moment.c.ticks < self.c.ticks)
+		self.add_constraint(moment.c.file_id == self.c.file_id)
 		return moment
 
 	def event(self, part):
@@ -700,7 +716,7 @@ class Moment(Hub):
 			event = Event(part, self)
 		return event
 
-	def event_node(self, node_type, part):
+	def _event_node(self, node_type, part):
 		if not part:
 			parts = [x for x in self.SQL.structures
 					 if x.original.name == 'parts']
@@ -709,10 +725,10 @@ class Moment(Hub):
 		return event.node(node_type)
 
 	def measure(self, part=None):
-		return self.event_node('measures', part)
+		return self._event_node('measures', part)
 
 	def attributes(self, part=None):
-		return self.event_node('attributes', part)
+		return self._event_node('attributes', part)
 
 
 class Part(Hub):
@@ -727,15 +743,16 @@ class Part(Hub):
 		self.SQL.structures.append(self)
 		self.events = {}
 
-	def add_note(self, specifier=None, moment=None):
-		if not moment:
-			for hub in self.SQL.structures:
-				if hub.original.name == 'moments':
-					warn("Part.add_note(): you must provide a " + 
-						 "'moment=' argument if a Moment or Note " + 
-						 "already exists.\n") 
-					sys.exit(2)
-			moment = Moment()
+	def add_first_note(self, specifier=None):
+		for hub in self.SQL.structures:
+			if hub.original.name == 'moments':
+				sys.exit("Part.add_first_note(): cannot be used once a Moment has been added.\n")
+		moment = Moment() 
+		return self.add_note(moment, specifier)
+
+	def add_note(self, moment, specifier=None):
+		if not isinstance(moment, Moment):
+			sys.exit("Part.add_note(): The first argument should be a Moment object.")
 		event = Event(self, moment)
 		note = Note(event, specifier)
 		return note

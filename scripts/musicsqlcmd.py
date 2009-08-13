@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import pdb
 import getopt
 from musicsql.options import getOptions, defaults as longOptions
 
@@ -12,12 +13,14 @@ def print_template():
 import musicsql
 q = musicsql.Query()
 
-part1 = q.part()
 ### CONSTRUCT YOUR QUERY HERE ###
+part1 = q.part()
+note1 = part1.add_first_note()
+
+### END OF QUERY ###
 
 q.print_run()
-# use the --exportable option to get information to generate previews
-'''
+# use the --previewdata option to get information to generate previews'''
 
 def list_databases():
 	import musicsql.backend
@@ -39,6 +42,7 @@ def list_modules():
 	for property in modules:
 		module = msql.load_submodule(property)
 		instance = module.Query(**options)
+		instance.table_data()
 		key = instance.foreignkey[1]
 		if not hubs.has_key(key):
 			hubs[key] = []
@@ -62,6 +66,7 @@ def list_properties():
 	import musicsql.backend
 	table = args[0]
 	cols = musicsql.backend.list_columns(table, **options)
+	cols = [x for x in cols if not x.startswith('_')]
 	if len(cols) == 0:
 		sys.exit("There are no accessible properties in the '%s' table. " % table +
 				"This probably means the node is true/false and can be accessed via the is_null method.")
@@ -76,9 +81,11 @@ def list_hub_nodes():
 	import musicsql.alchemy as alchemy
 	q = alchemy.SQL(**options)
 	for type in ('notes', 'noteheads', 'parts', 'moments', 'events'):
-		print("\nAvailable nodes for the '%s' objects:" % type)
+		print("\nAdditional nodes for the '%s' objects:" % type)
 		nodes = q.relatives[type].keys()
 		nodes.sort()
+		if 'intersects' in nodes:
+			nodes.remove('intersects')
 		for table in nodes:
 			print '\t' + table
 
@@ -237,10 +244,11 @@ def previewxml():
 	shutil.rmtree(tmp_dir)
 
 def preview():
+	import musicsql.lilypond
 	usage = '''
 usage: musicsqlcmd.py preview file1 [file2...] [--format (pdf|png)] [--output_prefix prefix] --database db_name [--password] [--backend dbtype]
  
-:: Reads search results generated with the --exportable option and creates preview images from them using LilyPond.)
+:: Reads search results generated with the --previewdata option and creates preview images from them using LilyPond.)
 '''
 	l_options= longOptions[:]
 	l_options += ['format=?', 'prefix=?']
@@ -252,37 +260,9 @@ usage: musicsqlcmd.py preview file1 [file2...] [--format (pdf|png)] [--output_pr
 		args = (tmpfile,)
 	index = 1
 	for file in args:
-		filelist = make_previews(file, tmp_dir, index, **options)
+		filelist = musicsql.lilypond.make_previews(file, tmp_dir, index, **options)
 		index += len(filelist)
-		
-def make_previews(filename, tmp_dir, index, **options):
-	import shutil
-	import os.path
-	import musicsql.lilypond
-	import musicsql.database.exportxml
-	
-	fh = open(filename)
-	headers = fh.readline().rstrip().split()
-	rows = []
-	for row in fh:
-		columns = row.rstrip().split('\t')
-		hash = dict(zip(headers, columns))
-		rows.append(hash)
-	fh.close()
-	lyfile_list = []
-	out_files = []
-	format = options.get('format', 'png')
-	for row in rows:
-		xmlfile = musicsql.database.exportxml.exportableToXml(row, tmp_dir, **options)
-		lyfile = musicsql.lilypond.xml_to_ly(xmlfile, tmp_dir)
-		lyfile_list.append(lyfile)
-		file = os.path.splitext(os.path.basename(row['_file']))[0]
-		out_files.append("%s_m%s_%s.%s" % (file, row['_measures'], row['_parts'], format))
-	prev_files = musicsql.lilypond.ly_to_preview(lyfile_list, tmp_dir, format)
-	for i in range(len(prev_files)):
-		shutil.copy(prev_files[i], out_files[i])
-	shutil.rmtree(tmp_dir)
-	return prev_files
+
 
 def ezsearch():
 	usage = '''
@@ -291,11 +271,11 @@ usage: musicsqlcmd.py ezsearch [--preview] 'searchstring' --database database [-
 :: A convenience function to search for a simple note sequence using Humdrum rhythm and scientific pitch notation.
 :: e.g., '4G3 8A3 8B3 4C4'. Either rhythm or pitch information can be omitted.
 '''
-	longOpts = longOptions + ['preview?']
+	longOpts = longOptions + ['preview?', 'format=?']
 	options, args = getOptions(longOpts, usage)
 	if len(args) < 1:
 		sys.exit(usage)
-	options['exportable'] = True
+	options['previewdata'] = True
 	options['printing'] = True
 
 	import re
@@ -306,25 +286,13 @@ usage: musicsqlcmd.py ezsearch [--preview] 'searchstring' --database database [-
 	part = q.part()
 
 	details = re.split(' ', args[0])
-	note1 = part.add_note(details.pop(0))
+	note1 = part.add_first_note(details.pop(0))
 	notes = note1.add_note_sequence(*details)
 	
 	result_handle, headers = q.run()
-	if 'preview' not in options:
-		return
-
-	import os
-	import tempfile
-	warn('Making previews...\n')
-	results = result_handle.read()
-	tmp_dir = tempfile.mkdtemp()
-	(tmpDescriptor, tmpfilename) = tempfile.mkstemp(dir=tmp_dir)
-	resultFile = os.fdopen(tmpDescriptor, 'w')
-	resultFile.write('\t'.join(headers) + '\n')
-	resultFile.write(results)
-	resultFile.close()
-	options['prefix'] = 'ez'
-	make_previews(tmpfilename, tmp_dir, 1, **options)
+#	if 'preview' in options:
+#		musicsql.lilypond.make_previews(result_handle, headers, **options)
+		
 
 def main():
 	usage = ('usage: musicsqlcmd.py (setup|import|ezsearch|export|list|' +

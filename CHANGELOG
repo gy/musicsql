@@ -1,6 +1,6 @@
 MusicSQL changelog
 
-0.1.2: Aug 5, 2009
+0.1.2: Aug 12, 2009
 - Continued migration toward a pure-SQLAlchemy backend.
 - Removed redundant database connections.
 - Fixed problem where some MySQL tables were not InnoDB.
@@ -11,6 +11,12 @@ MusicSQL changelog
 - Heavily revised the ReadMe file.
 - Updated and simplified the template.
 - Added the Query.print_run() method.
+- Added the Part.add_first_note() method.
+- Changed Query.foreignkey to a dict to allow multiple foreign keys.
+- Changed 'exportable' to 'previewdata'.
+- Fixed errors in add_quality.py.
+- Added a PC column to the notes table.
+- Fixed --preview to work with all scripts.
 
 0.1.1: July 15, 2009
 - Reverted to simple Python Distutils installer.
