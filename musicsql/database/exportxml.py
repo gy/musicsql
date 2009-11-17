@@ -4,6 +4,7 @@
 #  Fix slur handling (slurs must be joined and attached to notes)
 
 import sys
+import pdb
 import re
 import time
 import getopt
@@ -311,7 +312,7 @@ def addNote(dom, mNode, note, chord, highlighted):
 	if note['rest']:
 		addElement(dom, noteNode, 'rest')
 	if note['notehead_duration']:
-		addElement(dom, noteNode, 'duration', text=note['notehead_duration'])
+		addElement(dom, noteNode, 'duration', text=int(note['notehead_duration']))
 	addElement(dom, noteNode, 'voice', text=note['voice'])
 	if note['staff']:
 		addElement(dom, noteNode, 'staff', text=note['staff'])

@@ -37,6 +37,8 @@ def get_errors(backend):
 def thread_id(connection, backend):
 	if backend == 'mysql':
 		return connection.connection.thread_id()
+	elif backend == 'postgres':
+		return connection.connection.get_backend_pid()
 	else:
 		# not implemented
 		return None
@@ -306,8 +308,11 @@ def create_database(**options):
 		return
 	db = admin_connection(**options)
 	try:
+		if backend == 'postgres':
+			import psycopg2.extensions
+			db.raw_connection().set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 		db.execute('CREATE DATABASE %s;' % options['database'])
-	except sqlalchemy.exc.ProgrammingError, err:
+	except (sqlalchemy.exc.ProgrammingError, sqlalchemy.exc.OperationalError), err:
 		sys.exit("SQL error %s" % err.orig)
 	return
 

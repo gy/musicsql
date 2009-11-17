@@ -337,7 +337,8 @@ class Query:
 			self.progress_report(row_count, 50, 100)
 			fields = row.rstrip().split('\t')
 			data.append(dict(zip(headers, fields)))
-		self.alchemy.bind.dialect.paramstyle = 'format'
+		if self.options['backend'] == 'mysql':
+			self.alchemy.bind.dialect.paramstyle = 'format'
 		table.insert().execute(data)
 		file_handle.seek(0)
 		return

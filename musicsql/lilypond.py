@@ -5,7 +5,7 @@ import sys
 warn = sys.stderr.write
 
 
-def lilypond_path():
+def lilypond_path(executable):
 	import musicsql.options
 	
 	if (sys.platform == 'darwin'):
@@ -14,17 +14,21 @@ def lilypond_path():
 		path = 'linux_path'
 	elif (sys.platform.startswith('mingw') or sys.platform.startswith('win')):
 		path = 'win_path'
+		if (executable == 'lilypond'):
+			executable = 'lilypond.exe'
+		if (executable == 'musicxml2ly'):
+			executable = 'musicxml2ly.py'
 	else:
 		sys.exit("Error: Unknown system platform '%s'." % sys.platform)
 	conf_parser = musicsql.options.get_config_parser()
-	return conf_parser.get("LilyPond", path)
+	return conf_parser.get("LilyPond", path) + '/' + executable
 
 def check_lilypond():
 	import os.path
 	import glob
 	import subprocess
 	import musicsql
-	lilypond = lilypond_path() + "/lilypond"
+	lilypond = lilypond_path("lilypond")
 	try:
 		lilypond = os.path.normpath(glob.glob(lilypond)[0])
 	except IndexError:
@@ -64,7 +68,10 @@ def make_previews(result_handle, headers, **options):
 	prev_files = musicsql.lilypond.ly_to_preview(lyfile_list, tmp_dir, format)
 	for i in range(len(prev_files)):
 		shutil.copy(prev_files[i], out_files[i])
-	shutil.rmtree(tmp_dir)
+	try:
+		shutil.rmtree(tmp_dir)
+	except:
+		pass
 	return prev_files
 
 def xml_to_ly(filename, tmp_dir):
@@ -74,18 +81,20 @@ def xml_to_ly(filename, tmp_dir):
 	import glob
 	
 	check_lilypond()
-	mxml2ly = lilypond_path() + "/musicxml2ly"
+	mxml2ly = lilypond_path("musicxml2ly")
 	try:
 		mxml2ly = os.path.normpath(glob.glob(mxml2ly)[0])
 	except IndexError:
 		sys.exit('MusicSQL: Unable to locate musicxml2ly. ' +
 				'You may need to install LilyPond or edit the MusicSQL CONFIG file.')
-
 	fileinfo = tempfile.mkstemp(dir=tmp_dir)
 	m2ly_file = fileinfo[1]
 	warn('Converting to LilyPond format...\n')
 	errs = tempfile.TemporaryFile()
-	p = subprocess.Popen([mxml2ly, '-o', m2ly_file, filename], stderr=errs)
+	shell = False
+	if (sys.platform.startswith('mingw') or sys.platform.startswith('win')):
+		shell = True
+	p = subprocess.Popen([mxml2ly, '-o', m2ly_file, filename], stderr=errs, shell=shell)
 	p.wait()
 	if p.returncode > 0:
 		errs.seek(0)

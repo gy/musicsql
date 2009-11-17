@@ -1066,8 +1066,10 @@ def processFile(filename, db, backend):
 	warn("Importing music...\n")
 	globals['descriptors'] = {}
 	importFile(filename, globals)
-	db.commit()
-
+	try:
+		db.commit()
+	except errors.get('OperationalError'), err:
+		sys.exit("Unable to commit import to database.\n")
 	warn("Finding note/event intersects...\n")
 	addIntersects(db, globals)
 	db.commit()

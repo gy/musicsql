@@ -156,3 +156,5 @@ def setup(**options):
 		Column('value', Text)
 		)
 	metadata.create_all()
+	if options['backend'] == 'postgres':
+		db.execute('ALTER DATABASE %s SET geqo_threshold=8;' % options['database'])

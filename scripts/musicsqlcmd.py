@@ -278,14 +278,14 @@ usage: musicsqlcmd.py ezsearch [--preview] 'searchstring' --database database [-
 	options['previewdata'] = True
 	options['printing'] = True
 
-	import re
-	import musicsql.alchemy
-	import musicsql.database
+	import musicsql
 	warn('Constructing query...\n')
 	q = musicsql.Query(**options)
 	part = q.part()
 
-	details = re.split(' ', args[0])
+	details = []
+	for arg in args:
+		details += arg.split()
 	note1 = part.add_first_note(details.pop(0))
 	notes = note1.add_note_sequence(*details)
 	

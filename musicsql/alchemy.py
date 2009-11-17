@@ -32,6 +32,7 @@ class SQL(sqlalchemy.sql.expression.Select):
 		self.column_objs = []
 		self.column_list = []
 		self.alias_names = []
+		self.alias_lookup = {}
 		self.field_types = {}
 		self._introspect()
 
@@ -198,7 +199,12 @@ class SQL(sqlalchemy.sql.expression.Select):
 	def select_all(self):
 		for node in self.data + self.structures:
 			node.select_all()
-
+			
+	def get_node(self, name):
+		node = self.alias_lookup.get(name)
+		if not node:
+			sys.exit("Node alias '%s' was not found." % name)
+		return node
 
 class Conditional():
 	
@@ -270,6 +276,7 @@ class Node(sqlalchemy.sql.expression.Alias):
 		name = self.alias_name()
 		table_name = self.SQL.tables[table_name]
 		sqlalchemy.sql.expression.Alias.__init__(self, table_name, alias=name)
+		self.SQL.alias_lookup[table_name] = self
 		self.constraints = {}
 		self.select_columns = []
 		self.joins = []
